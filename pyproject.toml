@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling>=1.4.1"]
+build-backend = "hatchling.build"
+
+[project]
+name = "idss"
+dynamic = ["version"]
+license = {file = "LICENSE"}
+readme = "README.md"
+requires-python = ">= 3.10"
+dependencies = [
+    "inotify",
+    "typing_extensions;python_version<'3.11'",
+]
+
+[project.urls]
+Source = "https://github.com/s-t-e-v-e-n-k/idss"
+
+[tool.hatch.version]
+path = "idss/__init__.py"
+
+[tool.ruff]
+line-length = 77
+fix = true
+output-format = "full"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "U"]
