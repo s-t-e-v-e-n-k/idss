@@ -1,7 +1,7 @@
 import pathlib
 import unittest
 
-from idss.idss import File
+from idss.idss import IDSS, Deliveries, File
 
 
 class TestFile(unittest.TestCase):
@@ -15,3 +15,13 @@ class TestFile(unittest.TestCase):
 
     def test_basename(self):
         pass
+
+
+class TestDeliveries(unittest.TestCase):
+    def setUp(self):
+        self.deliveries = Deliveries()
+
+
+class TestIDSS(unittest.TestCase):
+    def setUp(self):
+        self.idss = IDSS()
