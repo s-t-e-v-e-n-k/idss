@@ -23,21 +23,27 @@ class File:
     filename: pathlib.Path
 
     @property
-    def basename(self):
-        return str(self.filename).rsplit(",", maxsplit=1)
+    def split_by_flags(self):
+        return self.filename.name.rsplit(",", maxsplit=1)
 
+    @property
+    def basename(self):
+        return self.split_by_flags[0]
+
+    @property
     def flags(self):
-        pass
+        return self.split_by_flags[1]
+
+    @property
+    def seen(self):
+        return "S" in self.flags
 
 
 class IDSS:
     def __init__(self):
-        mask = constants.IN_MOVE | constants.IN_DELETE
         self.event_map = self.generate_event_map()
         self.maildir = pathlib.Path.home() / "Maildir"
         self.deliveries = Deliveries()
-        self.i = adapters.Inotify()
-        self.i.add_watch(str(self.maildir / ".Spam" / "cur"), mask=mask)
 
     def generate_event_map(self):
         event_map = {}
@@ -49,7 +55,10 @@ class IDSS:
         logging.debug(f"Train {filename} as {kind}")
 
     def process_events(self):
-        for event in self.i.event_gen(yield_nones=False):
+        i = adapters.Inotify()
+        mask = constants.IN_MOVE | constants.IN_DELETE
+        i.add_watch(str(self.maildir / ".Spam" / "cur"), mask=mask)
+        for event in i.event_gen(yield_nones=False):
             (_, event_type, _, filename) = event
             logging.debug(
                 "Calling {self.event_map[event_type]} for {filename}"
