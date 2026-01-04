@@ -1,15 +1,24 @@
-import pathlib
 import unittest
 from unittest.mock import Mock, patch
 
-from idss.idss import IDSS, Deliveries, File
+from idss.idss import IDSS, Deliveries, Event, MaildirFile
 
 
-class TestFile(unittest.TestCase):
+class TestEvent(unittest.TestCase):
+    def test_event(self):
+        event_tuple = ("header", ["IN_CREATE"], "/tmp", "foobar")
+        event = Event(*event_tuple)
+        self.assertEqual(event.header, "header")
+        self.assertEqual(len(event.event_types), 1)
+        self.assertEqual(event.event_types[0], "IN_CREATE")
+        self.assertEqual(event.path, "/tmp")
+        self.assertEqual(event.filename, "foobar")
+
+
+class TestMaildirFile(unittest.TestCase):
     def setUp(self):
-        strpath = "1766984234.M162135P1905529.mangled,S=40124,W=41134:2,S"
-        path = pathlib.Path(f"/tmp/{strpath}")
-        self.file = File(path)
+        filename = "1766984234.M162135P1905529.mangled,S=40124,W=41134:2,S"
+        self.file = MaildirFile(filename)
 
     def test_split_by_flags(self):
         expected = [
@@ -33,6 +42,28 @@ class TestFile(unittest.TestCase):
 class TestDeliveries(unittest.TestCase):
     def setUp(self):
         self.deliveries = Deliveries()
+
+    def test_in_empty(self):
+        self.assertNotIn("foobar", self.deliveries)
+
+    def test_new(self):
+        self.deliveries.new("foobar")
+        self.assertIn("foobar", self.deliveries)
+
+    def test_double_new(self):
+        self.deliveries.new("foobar")
+        with self.assertRaises(ValueError):
+            self.deliveries.new("foobar")
+
+    def test_marked_as_read_empty(self):
+        with self.assertRaises(ValueError):
+            self.deliveries.marked_as_read("foobar")
+
+    def test_full(self):
+        self.deliveries.new("foobar")
+        self.assertIn("foobar", self.deliveries)
+        self.deliveries.marked_as_read("foobar")
+        self.assertNotIn("foobar", self.deliveries)
 
 
 class TestIDSS(unittest.TestCase):

@@ -1,3 +1,4 @@
+import collections
 import dataclasses
 import logging
 import pathlib
@@ -7,24 +8,40 @@ from inotify import adapters, constants
 
 class Deliveries:
     def __init__(self):
-        self.deliveries = []
+        self._deliveries = []
 
-    @property
     def new(self, filename):
-        pass
+        logging.debug(f"{filename} is a fresh delivery")
+        name = MaildirFile(filename).basename
+        if name in self._deliveries:
+            raise ValueError(f"{filename} already seen")
+        self._deliveries.append(name)
 
-    @property
     def marked_as_read(self, filename):
-        pass
+        logging.debug(f"{filename} marked as read")
+        name = MaildirFile(filename).basename
+        if name not in self._deliveries:
+            raise ValueError(f"{filename} not seen before")
+        self._deliveries.remove(name)
+
+    def __contains__(self, filename):
+        return MaildirFile(filename).basename in self._deliveries
+
+
+# This is what is yielded directly from inotify
+# a 4-tuple of header, event_types, path, filename
+Event = collections.namedtuple(
+    "Event", ["header", "event_types", "path", "filename"]
+)
 
 
 @dataclasses.dataclass
-class File:
-    filename: pathlib.Path
+class MaildirFile:
+    filename: str
 
     @property
     def split_by_flags(self):
-        return self.filename.name.rsplit(",", maxsplit=1)
+        return self.filename.rsplit(",", maxsplit=1)
 
     @property
     def basename(self):
@@ -58,48 +75,35 @@ class IDSS:
         i = adapters.Inotify()
         mask = constants.IN_MOVE | constants.IN_DELETE
         i.add_watch(str(self.maildir / ".Spam" / "cur"), mask=mask)
-        for event in i.event_gen(yield_nones=False):
-            (_, event_type, _, filename) = event
+        for event_tuple in i.event_gen(yield_nones=False):
+            event = Event(*event_tuple)
+            event_type = event.event_types[0]
+            maildirfile = MaildirFile(event.filename)
             logging.debug(
-                "Calling {self.event_map[event_type]} for {filename}"
+                f"Calling {self.event_map[event_type]} for {event.filename}"
             )
-            if event_type not in self.event_type:
+            if event_type not in self.event_map:
                 logging.debug(
-                    f"Unhandled EVENT={event_type}, FILENAME={filename}"
+                    f"Unknown EVENT={event_type}, FILENAME={event.filename}"
                 )
                 continue
-            getattr(self, self.event_map[event_type])(filename)
+            getattr(self, self.event_map[event_type])(maildirfile)
+            # unhandled events? If they return False??
 
-    def delete_event(self, filename):
+    def moved_from_event(self, filename: str):
+        if not filename.seen:
+            logging.warn(f"{filename} not marked as a fresh delivery")
+
+    def moved_to_event(self, filename: str):
+        if filename.seen:
+            if filename in self.deliveries:
+                self.deliveries.marked_as_read(filename)
+            else:
+                self.train(filename)
+        else:
+            self.deliveries.new(filename)
+
+    def delete_event(self, filename: str):
         # has it been moved out?
         if self.maildir.rglob(filename):
             self.train(filename, "ham")
-
-
-# def idss():
-#    deliveries = Deliveries()
-#    i = adapters.Inotify()
-#    for event in i.event_gen(yield_nones=False):
-#        filename = File(filepath)
-#        if "IN_MOVED_FROM" in event_type:
-#            if filename.flags is None:
-#                deliveries.new(filename)
-#                continue
-#        if "IN_MOVED_TO" in event_type:
-#            # fresh delivery, therefore no flags
-#            if filename.endswith(","):
-#                logging.debug(f"Fresh message {filename}")
-#                deliveries.append(filename)
-#                continue
-#            if filename.endswith(",S"):
-#                # now seen, is it a delivery?
-#                logging.debug(f"Seen message {filename}")
-#                if filename[:-1] in deliveries:
-#                    logging.debug("In deliveries, removing")
-#                    deliveries.remove(filename[:-1])
-#                    continue
-#                train(filename)
-#                # not a delivery, it's been moved into spam
-#                logging.debug(f"Train {filename} as spam")
-#                continue
-#
